@@ -40,6 +40,13 @@ function cloneGit(url, name) {
 function cloneSvn(url, name) {
   const cloneDir = `${name}.git`;
   run(`git svn clone ${url} --stdlayout ${cloneDir}`);
+
+  // If --stdlayout found nothing (flat repo layout), retry without it
+  const result = execSync(`git -C ${cloneDir} rev-list --count --all`, { encoding: 'utf8' }).trim();
+  if (result === '0') {
+    fs.rmSync(cloneDir, { recursive: true, force: true });
+    run(`git svn clone ${url} ${cloneDir}`);
+  }
 }
 
 function bundle(name) {
@@ -69,7 +76,7 @@ async function main() {
 
   fs.mkdirSync(OUTPUT_DIR, { recursive: true });
 
-  const workDir = path.resolve('./beanstalk-work');
+  const workDir = path.resolve('./temp');
   fs.mkdirSync(workDir, { recursive: true });
   process.chdir(workDir);
 
