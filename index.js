@@ -39,12 +39,19 @@ function cloneGit(url, name) {
 
 function cloneSvn(url, name) {
   const cloneDir = `${name}.git`;
-  run(`git svn clone ${url} --stdlayout ${cloneDir}`);
 
-  // If --stdlayout found nothing (flat repo layout), retry without it
-  const result = execSync(`git -C ${cloneDir} rev-list --count --all`, { encoding: 'utf8' }).trim();
-  if (result === '0') {
-    fs.rmSync(cloneDir, { recursive: true, force: true });
+  let needsFlatClone = false;
+  try {
+    run(`git svn clone --stdlayout ${url} ${cloneDir}`);
+    const count = execSync(`git -C ${cloneDir} rev-list --count --all`, { encoding: 'utf8' }).trim();
+    const files = execSync(`git -C ${cloneDir} ls-files`, { encoding: 'utf8' }).trim();
+    if (count === '0' || files === '') needsFlatClone = true;
+  } catch (e) {
+    needsFlatClone = true;
+  }
+
+  if (needsFlatClone) {
+    if (fs.existsSync(cloneDir)) fs.rmSync(cloneDir, { recursive: true, force: true });
     run(`git svn clone ${url} ${cloneDir}`);
   }
 }
