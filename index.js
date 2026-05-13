@@ -34,11 +34,13 @@ function run(cmd, opts = {}) {
 
 function cloneGit(url, name) {
   const cloneDir = `${name}.git`;
+  if (fs.existsSync(cloneDir)) shellRm(cloneDir);
   run(`git clone --mirror ${url} ${cloneDir}`);
 }
 
 function cloneSvn(url, name) {
   const cloneDir = `${name}.git`;
+  if (fs.existsSync(cloneDir)) shellRm(cloneDir);
 
   let needsFlatClone = false;
   try {
@@ -51,7 +53,7 @@ function cloneSvn(url, name) {
   }
 
   if (needsFlatClone) {
-    if (fs.existsSync(cloneDir)) fs.rmSync(cloneDir, { recursive: true, force: true });
+    if (fs.existsSync(cloneDir)) shellRm(cloneDir);
     run(`git svn clone ${url} ${cloneDir}`);
   }
 }
@@ -62,9 +64,13 @@ function bundle(name) {
   run(`git -C ${cloneDir} bundle create ../${bundleFile} --all`);
 }
 
+function shellRm(dirPath) {
+  execSync(`rm -rf ${JSON.stringify(dirPath)}`);
+}
+
 function cleanup(name) {
   const cloneDir = `${name}.git`;
-  fs.rmSync(cloneDir, { recursive: true, force: true });
+  shellRm(cloneDir);
   console.log(`  Removed ${cloneDir}`);
 }
 
@@ -96,6 +102,13 @@ async function main() {
     console.log(`Processing: ${name} (${type})`);
     console.log(`${'='.repeat(62)}\n`);
 
+    const bundleDest = path.join(OUTPUT_DIR, `${name}.bundle`);
+    if (fs.existsSync(bundleDest)) {
+      console.log(`  Already bundled, skipping.`);
+      succeeded++;
+      continue;
+    }
+
     try {
       if (type === 'git') {
         cloneGit(url, name);
@@ -114,14 +127,13 @@ async function main() {
     } catch (err) {
       console.error(`\n  FAILED: ${name}`);
       console.error(`  ${err.message}`);
-      // Attempt cleanup of partial clone so next runs start fresh
-      cleanup(name);
+      try { cleanup(name); } catch (_) {}
       failed++;
     }
   }
 
   process.chdir('..');
-  fs.rmSync(workDir, { recursive: true, force: true });
+  shellRm(workDir);
 
   console.log(`\n${'='.repeat(62)}`);
   console.log(`Done. ${succeeded} succeeded, ${failed} failed.`);
